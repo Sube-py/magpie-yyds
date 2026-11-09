@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>只因API 密钥</title>
+<link rel="stylesheet" href="style.css">
+<script src="_magpie/bridge.js"></script>
+<script src="keys.js"></script>
+<script src="app.js" defer></script>
+</head>
+<body>
+<header>
+  <h1 data-t="title">只因API 密钥</h1>
+  <button id="add" type="button" class="secondary" data-t="add">添加密钥</button>
+</header>
+<p class="intro" data-t="intro">
+  「只因API」账号下的密钥在此维护。账号可用的模型，是这些密钥所属分组的并集。
+  密钥的排列顺序即优先级：同一个模型由多个密钥提供时，排在前面的优先使用。
+</p>
+
+<ol id="rows" class="rows"></ol>
+<p id="empty" class="empty" hidden data-t="empty">暂无密钥。点击「添加密钥」新增一条，密钥可在只因API 网站的「API 密钥」页面创建。</p>
+
+<p id="problems" class="problems" role="alert" hidden></p>
+<footer>
+  <button id="save" type="button" disabled data-t="save">保存</button>
+  <span id="state" class="state" role="status" aria-live="polite"></span>
+</footer>
+<p class="hint" data-t="hint">
+  保存后 magpie 会重新加载插件，新配置立即生效。密钥以明文保存在 magpie 的 plugins.yml 中，请确保本机配置目录仅本人可读。
+</p>
+
+<template id="row">
+  <li class="row">
+    <span class="num" aria-hidden="true"></span>
+    <label class="field label">
+      <span class="name" data-t="label">名称（建议填写分组名）</span>
+      <input class="label-input" type="text" maxlength="60" autocomplete="off" spellcheck="false" placeholder="GPT 稳定分组">
+    </label>
+    <label class="field key">
+      <span class="name" data-t="key">密钥</span>
+      <span class="secret">
+        <input class="key-input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="sk-…">
+        <button class="show" type="button" aria-pressed="false" data-t="show">显示</button>
+      </span>
+    </label>
+    <span class="tools">
+      <button class="up" type="button" data-t="up" title="上移">↑</button>
+      <button class="down" type="button" data-t="down" title="下移">↓</button>
+      <button class="rm" type="button" data-t="remove">删除</button>
+    </span>
+  </li>
+</template>
+</body>
+</html>
