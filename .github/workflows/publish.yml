@@ -2,7 +2,7 @@ name: publish
 
 # The first version goes out once from a checkout signed in to npm (or with an
 # NPM_TOKEN secret); after that a Trusted Publisher on npmjs.com
-# (Sube-py/magpie-yyds-auth, this file) lets a tag publish itself: no token
+# (Sube-py/magpie-yyds, this file) lets a tag publish itself: no token
 # stored anywhere, and the tarball carries a provenance statement.
 
 on:

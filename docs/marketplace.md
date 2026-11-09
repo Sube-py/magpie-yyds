@@ -2,10 +2,10 @@
 
 Two separate things, and only the first is in this repository:
 
-1. **The npm package** — `magpie-yyds-auth`. Once published, anyone can install
+1. **The npm package** — `magpie-yyds`. Once published, anyone can install
    it by name:
    ```sh
-   magpie plugin add magpie-yyds-auth
+   magpie plugin add magpie-yyds
    ```
 2. **The market entry** — magpie's Plugins tab lists what
    [`magpie-community/plugins`'s `registry.json`](https://github.com/magpie-community/plugins/blob/main/registry.json)
@@ -17,9 +17,9 @@ Two separate things, and only the first is in this repository:
 
 ```json
 {
-  "package": "magpie-yyds-auth",
+  "package": "magpie-yyds",
   "name": "只因API",
-  "icon": "https://raw.githubusercontent.com/Sube-py/magpie-yyds-auth/main/page/icon.png",
+  "icon": "https://raw.githubusercontent.com/Sube-py/magpie-yyds/main/page/icon.png",
   "providers": ["yyds"],
   "community": true,
   "summary": {
@@ -43,9 +43,9 @@ so this is a new one rather than a second package for a listed channel.
    ```
    Trusted publishing can't create the first version — a Trusted Publisher is
    set on a package that exists.
-2. **A Trusted Publisher** on npmjs.com, package `magpie-yyds-auth` →
+2. **A Trusted Publisher** on npmjs.com, package `magpie-yyds` →
    Settings → Trusted Publisher → GitHub:
-   - repository: `Sube-py/magpie-yyds-auth`
+   - repository: `Sube-py/magpie-yyds`
    - workflow: `publish.yml`
    - environment: (none)
 3. **Every version after that** publishes itself from a tag — no token stored

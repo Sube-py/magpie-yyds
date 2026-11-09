@@ -1,5 +1,5 @@
 {
-  "name": "magpie-yyds-auth",
+  "name": "magpie-yyds",
   "version": "0.2.0",
   "description": "只因API (yydsapi.uno) in magpie: the account's daily check-in and balance, and chats on its API keys",
   "type": "module",
@@ -49,13 +49,13 @@
     "permissions": []
   },
   "author": "Sube-py",
-  "homepage": "https://github.com/Sube-py/magpie-yyds-auth#readme",
+  "homepage": "https://github.com/Sube-py/magpie-yyds#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Sube-py/magpie-yyds-auth.git"
+    "url": "git+https://github.com/Sube-py/magpie-yyds.git"
   },
   "bugs": {
-    "url": "https://github.com/Sube-py/magpie-yyds-auth/issues"
+    "url": "https://github.com/Sube-py/magpie-yyds/issues"
   },
   "publishConfig": {
     "access": "public"

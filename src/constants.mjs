@@ -37,7 +37,7 @@ export const EARLY_MS = 60 * 1000
 /** How long the balance and the key list are kept between reads. */
 export const READ_TTL_MS = 60 * 1000
 
-export const USER_AGENT = "magpie-yyds-auth/0.1.0"
+export const USER_AGENT = "magpie-yyds/0.2.0"
 
 /**
  * What is known of some of the site's models: `context` and `output`, which
