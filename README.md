@@ -21,8 +21,11 @@
 ## 安装
 
 ```sh
-magpie plugin add /Users/sube/me/magpie-yyds
+magpie plugin add magpie-yyds-auth          # 从 npm
+magpie plugin add /Users/sube/me/magpie-yyds # 或者从本地这份源码
 ```
+
+源码与发布：[github.com/Sube-py/magpie-yyds-auth](https://github.com/Sube-py/magpie-yyds-auth)；进 magpie 插件市场要的 `registry.json` 条目见 [docs/marketplace.md](docs/marketplace.md)。
 
 图标用的是只因官网的 logo：提供商卡片用 `package.json` 里内嵌的 `magpie.icon`，侧栏的插件页面用同图的文件 `page/icon.png`（magpie 从页面目录里取，不联网）。
 

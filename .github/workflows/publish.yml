@@ -1,0 +1,41 @@
+name: publish
+
+# The first version goes out once from a checkout signed in to npm (or with an
+# NPM_TOKEN secret); after that a Trusted Publisher on npmjs.com
+# (Sube-py/magpie-yyds-auth, this file) lets a tag publish itself: no token
+# stored anywhere, and the tarball carries a provenance statement.
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: test and publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # trusted publishing: npm checks this token's claims
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: https://registry.npmjs.org
+
+      # npm 11.5.1 is the first that publishes on a trusted publisher
+      - run: npm install --global npm@latest
+
+      - name: Test
+        run: npm test
+
+      - name: Publish
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
