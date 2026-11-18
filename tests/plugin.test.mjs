@@ -140,14 +140,14 @@ test("the check-in claims once, then says the day is in", async () => {
   assert.equal(second.outcome, "done")
 })
 
-test("a captcha-guarded day is left to the site", async () => {
+test("a day the site guards with a captcha reads as captcha, and says where", async () => {
   state.checkedIn = false
   state.captcha = true
-  // a fresh plugin, since the site's captcha settings are read at most once a minute
-  const fresh = await YydsAuthPlugin({ client: {} }, { keys: [{ label: "", key: KEY_GPT }] })
-  const out = await fresh.auth.checkin(async () => record())
+  const out = await plugin.auth.checkin(async () => record())
   assert.equal(out.outcome, "captcha")
+  assert.match(out.message, /人机验证/)
   state.captcha = false
+  state.checkedIn = true
 })
 
 test("a check-in the site fails keeps its words", async () => {
@@ -195,14 +195,12 @@ function handle(req, res) {
   const ok = (data) => send(200, { code: 0, message: "success", data })
   const key = String(req.headers.authorization ?? "").replace("Bearer ", "")
 
-  if (path === "/api/v1/settings/public") {
-    return ok({ turnstile_enabled: false, checkin_captcha_enabled: state.captcha })
-  }
   if (path === "/api/v1/auth/me") {
     return ok({ id: 822, username: "sube", email: "sube@example.com", balance: state.balance, frozen_balance: 0 })
   }
   if (path === "/api/v1/activity/checkin") {
     if (req.method === "POST") {
+      if (state.captcha) return send(400, { code: 400, message: "captcha verification failed", reason: "GEETEST_CAPTCHA_VERIFICATION_FAILED" })
       if (state.claimStatus !== 200) return send(state.claimStatus, { code: state.claimStatus, message: "服务暂时不可用" })
       state.checkedIn = true
     }

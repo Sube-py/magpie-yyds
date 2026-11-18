@@ -83,7 +83,7 @@ magpie plugin options /Users/sube/me/magpie-yyds '{"keys":[{"label":"GPT 稳定�
 | `done` | 今天已经签过（金额可能是「冻结中」） |
 | `inactive` | 站点关掉了签到 |
 | `ineligible` | 账号被锁定 / 不能参与 |
-| `captcha` | 站点要人机验证，插件不解答，请到网站手动签 |
+| `captcha` | 站点给签到接了人机验证（现在是 Geetest），插件不代答：请到网站手动签一次 |
 | `failed` | 其它失败，带站点原话 |
 
 ## 卡片上的数字
@@ -127,7 +127,8 @@ npm test        # node --test tests/*.test.mjs，73 项
 
 ## 已知限制
 
-- 站点的签到 / 登录如果开了人机验证，插件不解答：签到返回 `captcha` 并让人去网站，登录请改用粘贴会话。
+- **签到现在要人机验证（Geetest）**：站点在 `checkin_captcha_enabled` 打开后，`POST /activity/checkin` 一律回 `400 GEETEST_CAPTCHA_VERIFICATION_FAILED`，所以自动签到无法完成——插件会先尝试领取，按站点的话返回 `captcha`，并在卡片/`magpie accounts checkin` 里提示去网站手动签。站点关掉这个开关后，自动签到会自己恢复（不需要改插件）。
+- 登录若开了人机验证，同样不解答：请改用「粘贴浏览器会话」登录。
 - 模型列表只有 id 和显示名，站点不报上下文长度；已知的几个写在 `src/constants.mjs` 的 `KNOWN_MODELS`，其余交给 magpie 自己的知识库。
 - 密钥是插件级设置：同一台 magpie 上如果登录了两个只因API 账号，它们共用同一份 `keys`（余额和签到仍各算各的）。
 - 页面上保存密钥会让 magpie 重载插件宿主（其它插件会跟着重启一下），这是 magpie 的 options 机制。

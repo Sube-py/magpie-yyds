@@ -12,9 +12,8 @@ function record() {
 }
 
 /** A site whose check-in is in the state given, and whose claim answers as told. */
-function site({ status = {}, claim = null, settings = { checkin_captcha_enabled: false } } = {}) {
+function site({ status = {}, claim = null } = {}) {
   return makeFetch((url, init) => {
-    if (url.endsWith("/settings/public")) return ok(settings)
     if (url.endsWith("/activity/checkin")) {
       if (init.method === "POST") return claim ?? ok(status)
       return ok(status)
@@ -83,14 +82,28 @@ test("a claim that refuses because the day is in is done, not failed", async () 
   assert.equal(out.outcome, "done")
 })
 
-test("a captcha-guarded check-in is left to the site's own page", async () => {
+test("a claim the site guards with a captcha is tried first, then reads as captcha", async () => {
   const { fetchImpl, calls } = site({
     status: { enabled: true, checked_in: false },
-    settings: { checkin_captcha_enabled: true },
+    claim: bad(400, "captcha verification failed; please try again", { reason: "GEETEST_CAPTCHA_VERIFICATION_FAILED" }),
   })
   const out = await new CheckinService({ api: new YydsApi({ fetchImpl }) }).run(record())
   assert.equal(out.outcome, "captcha")
-  assert.equal(calls.filter((c) => c.method === "POST").length, 0, "never claims what it can't prove")
+  assert.match(out.message, /人机验证/)
+  assert.match(out.message, /yydsapi\.uno/)
+  assert.equal(calls.filter((c) => c.method === "POST").length, 1, "the claim is attempted, not pre-judged")
+})
+
+test("no settings read stands between the day and its claim", async () => {
+  const { fetchImpl, calls } = site({
+    status: { enabled: true, checked_in: false },
+    claim: ok({ enabled: true, checked_in: true, amount: 0.01 }),
+  })
+  await new CheckinService({ api: new YydsApi({ fetchImpl }) }).run(record())
+  assert.deepEqual(
+    calls.map((c) => `${c.method} ${new URL(c.url).pathname}`),
+    ["GET /api/v1/activity/checkin", "POST /api/v1/activity/checkin"],
+  )
 })
 
 test("a captcha proof a person solved is sent with the claim", async () => {

@@ -97,7 +97,7 @@ page/index.html+app.js 页面：密钥的列表与编辑（bridge 只读 options
 page/keys.js           页面的纯逻辑（读取/校验/合并），被页面和测试共用
 ```
 
-分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 82 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
+分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 98 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
 
 ## 5. 关键流程
 
@@ -188,7 +188,7 @@ fetch(请求):
 | 模型没有密钥提供 | 404 `model_not_found`，不发请求 | 插件 |
 | 把密钥填进「账号」登录 | 拒绝，并指到插件 Options 的 keys | 插件 |
 | 只加了账号、没加密钥 | 签到和余额正常，没有可对话的账号 | 用户按需添加 |
-| 签到要验证码 | `captcha`，magpie 文案让人去网站 | 插件 |
+| 签到要人机验证（Geetest） | 先尝试领取，站点拒绝（`400 GEETEST_CAPTCHA_VERIFICATION_FAILED`）后返回 `captcha`，文案指到网站 | 插件 |
 | 签到当天已领 | `done`，不重复记账 | 插件 |
 | 站点彻底不可达 | 抛错，magpie 1 分钟后再问 | 插件 + magpie |
 | 一天只签一次 | `plugin-checkin.json` 按账号记账 | magpie |

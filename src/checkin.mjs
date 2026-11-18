@@ -6,6 +6,12 @@
 // claim: a day already in answers the same record with `code: 0`, so the day
 // is decided from the read before the claim, never from the claim's silence.
 //
+// A day the site guards with a captcha (Geetest here) can't be claimed by
+// this plugin: the answer says so, and magpie then tells the person to check
+// in in the site's own app. The claim is still *tried* first — the site's
+// switch and the site's enforcement need not agree, so what the site answers
+// decides, not a settings flag read beforehand.
+//
 // What each answer means for magpie:
 //   claimed    the claim went through, with the amount it gave
 //   done       today is already in (amount is what today gave)
@@ -15,13 +21,12 @@
 //   failed     anything else, with what the site said
 
 import { YydsError } from "./errors.mjs"
-import { READ_TTL_MS } from "./constants.mjs"
 
 const ALREADY_IN = /已签到|已领取|already\s+(checked|claimed)/i
+const CAPTCHA = /captcha/i
 
 export class CheckinService {
   #api
-  #captcha = null
 
   constructor({ api } = {}) {
     this.#api = api
@@ -41,19 +46,6 @@ export class CheckinService {
     })
   }
 
-  /** Whether the site's check-in asks for a captcha (read at most a minute). */
-  async captchaRequired() {
-    if (this.#captcha && Date.now() - this.#captcha.at < READ_TTL_MS) return this.#captcha.on
-    try {
-      const settings = await this.#api.data("/settings/public")
-      const on = settings?.checkin_captcha_enabled === true
-      this.#captcha = { on, at: Date.now() }
-      return on
-    } catch {
-      return false
-    }
-  }
-
   /**
    * One check-in, from the read to the claim. `proof` is a captcha token a
    * person solved; without one a captcha-guarded site is left to its app.
@@ -65,9 +57,8 @@ export class CheckinService {
       const status = await this.status(token)
       const decided = decide(status)
       if (decided) return decided
-      if (!proof && (await this.captchaRequired())) {
-        return { outcome: "captcha", message: "只因API 的签到开启了人机验证，请到网站上手动签到" }
-      }
+      // no pre-judging: the site answers, and a captcha it demands is its
+      // answer (a proof may be handed in by a caller that solved one)
       return claimed(await this.claim(token, proof))
     } catch (error) {
       return failed(error)
@@ -125,6 +116,12 @@ export function failed(error) {
     if (error.status === 0) throw error
     if (error.signedOut) return { outcome: "failed", message: "只因API 的登录已失效，请重新登录" }
     if (ALREADY_IN.test(error.message)) return { outcome: "done", message: error.message }
+    if (CAPTCHA.test(`${error.message} ${error.reason} ${error.code}`)) {
+      return {
+        outcome: "captcha",
+        message: "只因API 的签到要人机验证（Geetest），插件不代答：请到 yydsapi.uno 手动签到一次",
+      }
+    }
     return { outcome: "failed", message: error.message }
   }
   return { outcome: "failed", message: String(error?.message ?? error) }
