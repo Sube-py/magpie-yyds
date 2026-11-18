@@ -89,6 +89,7 @@ src/routing.mjs        KeyRouter：每个密钥的模型列表、并集、模型
 src/loader.mjs         routedLoader：按模型选密钥发请求（含 404/401 处理）
 src/models.mjs         ModelCatalog：实时模型列表 → magpie 的模型条目
 src/catalog.mjs        ModelsDevCatalog：按 id 查 magpie 的 models.dev 目录（能力/上下文/价格）
+src/dashboard.mjs      UsageDashboard：站点的用量快照（今日消费、今日用量、按天/按模型）
 src/usage.mjs          UsageReporter：余额 → usage 卡片
 src/checkin.mjs        CheckinService：状态 → 判定 → 领取 → 结果映射
 src/signin.mjs         SignInService：密码 / 粘贴会话两种登录
@@ -97,7 +98,7 @@ page/index.html+app.js 页面：密钥的列表与编辑（bridge 只读 options
 page/keys.js           页面的纯逻辑（读取/校验/合并），被页面和测试共用
 ```
 
-分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 102 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
+分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 108 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
 
 ## 5. 关键流程
 
@@ -194,6 +195,34 @@ magpie quota yyds          余额 84% ($43.18 / 累计充值 $266.55)  $43.18 le
 ```
 
 没有可信分母时（`total_recharged` 为 0，或余额高于累计充值——赠送积分会让余额超过充值额）退回纯钱包：`{ name, balance, unit, display, aside: true }`。`aside` 是必须的：只给 `balance` 不给 `aside` 时 `quotaOfPlugin` 三个分支都不进，`Used` 停在 0。
+
+### 5.7 站点自己的用量（今日消费 / 今日用量）
+
+```
+GET /usage/dashboard/snapshot-v2?timezone=Asia/Shanghai   （会话 token）
+  → trend[]: 每天 {date, requests, total_tokens, cost, actual_cost}
+  → models[]: 同一区间按模型
+```
+
+仪表盘的「今日消费」= 今天那行的 `actual_cost`（实测 2026-11-18：站点 3.045654，插件算 3.045653518）。窗口：
+
+```
+今日消费 = { name, used: 100*spent/(spent+balance), amount: spent, limit: spent+balance, unit: "USD",
+             display: "$3.05 / $46.23 今晨余额" }
+今日用量 = { name, display: "104 次 · 11.4M tokens", aside: true }   // 文本，不画线
+```
+
+- 分母「今晨余额 = 现在余额 + 今日消费」：这样今天的线从 0% 开始、随消费走高，零点重置；
+- 今天没消费 → 只发文本 `$0.00`，不发 `used: 0`（那又会是一条平的 100% 线）；
+- 快照读不到（站点 5xx/超时）→ 这两项不出现，余额照旧，不把整张卡片弄失败；
+- 这是**账号级**用量：别的客户端、别的机器跑的请求也在里面，预付余额本来就是被它们一起消耗的。
+
+实测：
+
+```
+/api/usage/quotas  [ {余额 83.8%}, {今日消费 6.59%}, {今日用量 104 次 · 11.4M tokens} ]
+quota-history      {"今日消费":[{left:93.41}], "余额":[{left:16.2},{left:16.2}]}
+```
 
 ## 6. 失败矩阵
 

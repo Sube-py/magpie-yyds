@@ -1,15 +1,24 @@
 // What the account's usage card says.
 //
-// `GET /auth/me` carries the wallet: `balance` and `frozen_balance`, in US
-// dollars (the dashboard's `$79.19`). It belongs to the account, so only an
-// account signed in with its session has one — a key account reads nothing,
-// and says so instead of looking empty.
+// `GET /auth/me` carries the wallet: `balance`, `frozen_balance`, and
+// `total_recharged`, everything ever paid in — in US dollars (the dashboard's
+// `$43.18`). The site's own usage dashboard carries what was spent, so the card
+// shows the same three things its page does: 余额, 今日消费, 今日用量.
+//
+// Two of them are shares, because that is what magpie draws a curve from
+// (quota-history): the balance against what was ever paid in, and today's
+// spend against the balance the day started with. A day that has spent
+// nothing is text, not a share at 0 — a share nobody said draws a flat line.
+
+import { UsageDashboard } from "./dashboard.mjs"
 
 export class UsageReporter {
   #api
+  #dashboard
 
-  constructor({ api } = {}) {
+  constructor({ api, dashboard } = {}) {
     this.#api = api
+    this.#dashboard = dashboard ?? new UsageDashboard({ api })
   }
 
   async report(record, { renewed = false } = {}) {
@@ -25,13 +34,15 @@ export class UsageReporter {
         signIn: error?.signedOut ? "expired" : "kept",
       }
     }
+
     const balance = number(me?.balance)
     const frozen = number(me?.frozen_balance)
     const recharged = number(me?.total_recharged)
+    const today = await this.#dashboard.today(token)
     return {
       user: userOf(me, record),
       balance: `$${balance.toFixed(2)}`,
-      windows: [walletWindow(balance, frozen, recharged)],
+      windows: [balanceWindow(balance, frozen, recharged), spendWindow(today, balance), usageWindow(today)].filter(Boolean),
       signIn: renewed ? "renewed" : "kept",
     }
   }
@@ -51,7 +62,7 @@ export class UsageReporter {
  * A site that tells no total (a fresh account, credits only from gifts) keeps
  * the plain wallet: the figure, set aside, no invented curve.
  */
-export function walletWindow(balance, frozen = 0, recharged = 0) {
+export function balanceWindow(balance, frozen = 0, recharged = 0) {
   const frozenText = frozen > 0 ? ` · 冻结 $${frozen.toFixed(2)}` : ""
   const total = Number(recharged)
   if (Number.isFinite(total) && total > 0 && balance <= total) {
@@ -67,6 +78,46 @@ export function walletWindow(balance, frozen = 0, recharged = 0) {
   }
   const display = `$${balance.toFixed(2)}${frozenText}`
   return { name: "余额", balance, unit: "USD", display, aside: true }
+}
+
+/**
+ * Today's spend, against the balance the day began with (`balance + spent`).
+ * A day with nothing spent is no share: the site's `0` would draw a window
+ * that is 100% left all day, which is the flat line magpie warns about.
+ */
+export function spendWindow(today, balance = 0) {
+  const spent = Number(today?.actual) || 0
+  if (!(spent > 0)) {
+    return { name: "今日消费", display: "$0.00", unit: "USD", aside: true }
+  }
+  const budget = spent + Math.max(0, Number(balance) || 0)
+  return {
+    name: "今日消费",
+    used: Math.min(100, (100 * spent) / budget),
+    amount: spent,
+    limit: budget,
+    unit: "USD",
+    display: `$${spent.toFixed(2)} / $${budget.toFixed(2)} 今晨余额`,
+  }
+}
+
+/** Today's calls and tokens, as the site's dashboard counts them. */
+export function usageWindow(today) {
+  if (!today || (!today.requests && !today.tokens)) return null
+  return {
+    name: "今日用量",
+    display: `${today.requests.toLocaleString("en-US")} 次 · ${tokensShort(today.tokens)} tokens`,
+    aside: true,
+  }
+}
+
+/** 1_234_567 as "1.2M", as the site's own dashboard writes it. */
+export function tokensShort(n) {
+  const v = Number(n) || 0
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`
+  return String(Math.round(v))
 }
 
 /** The account's name on the card: the site's username, else its email. */

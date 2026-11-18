@@ -7,6 +7,7 @@ import { createServer } from "node:http"
 import test, { after, before } from "node:test"
 
 import { YydsAuthPlugin } from "../index.mjs"
+import { siteToday } from "../src/dashboard.mjs"
 import { PROVIDER_ID } from "../src/constants.mjs"
 
 const ACCESS = jwt({ user_id: 822, email: "sube@example.com" })
@@ -19,6 +20,8 @@ const state = {
   claimStatus: 200,
   captcha: false,
   balance: 79.190222963,
+  recharged: 266.548,
+  todaySpent: 3.0457,
   groups: { [KEY_GPT]: ["gpt-6.1-sol", "shared"], [KEY_GLM]: ["glm-5.3", "shared"] },
   refused: [],
   used: [],
@@ -126,10 +129,16 @@ test("a key the site refuses is passed over for one that serves the model", asyn
   state.refused = []
 })
 
-test("the account's card reads its wallet", async () => {
+test("the account's card reads its wallet, and the site's own day", async () => {
   const out = await plugin.auth.usage(async () => record())
   assert.equal(out.user, "sube")
-  assert.deepEqual(out.windows, [{ name: "余额", balance: state.balance, unit: "USD", display: "$79.19", aside: true }])
+  const balance = out.windows.find((w) => w.name === "余额")
+  assert.equal(balance.limit, state.recharged, "everything paid in")
+  assert.equal(balance.amount.toFixed(3), (state.recharged - state.balance).toFixed(3))
+  const spend = out.windows.find((w) => w.name === "今日消费")
+  assert.equal(spend.amount, state.todaySpent, "today's actual_cost, as the site's dashboard has it")
+  const used = out.windows.find((w) => w.name === "今日用量")
+  assert.match(used.display, /104 次 · 29\.4M tokens/)
 })
 
 test("the check-in claims once, then says the day is in", async () => {
@@ -196,7 +205,23 @@ function handle(req, res) {
   const key = String(req.headers.authorization ?? "").replace("Bearer ", "")
 
   if (path === "/api/v1/auth/me") {
-    return ok({ id: 822, username: "sube", email: "sube@example.com", balance: state.balance, frozen_balance: 0 })
+    return ok({
+      id: 822,
+      username: "sube",
+      email: "sube@example.com",
+      balance: state.balance,
+      frozen_balance: 0,
+      total_recharged: state.recharged,
+    })
+  }
+  if (path === "/api/v1/usage/dashboard/snapshot-v2") {
+    return ok({
+      trend: [
+        { date: "2026-11-17", requests: 89, total_tokens: 18_815_200, cost: 18.8152, actual_cost: 2.3511 },
+        { date: siteToday(), requests: 104, total_tokens: 29_354_600, cost: 29.3546, actual_cost: state.todaySpent },
+      ],
+      models: [],
+    })
   }
   if (path === "/api/v1/activity/checkin") {
     if (req.method === "POST") {

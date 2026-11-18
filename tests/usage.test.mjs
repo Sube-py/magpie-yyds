@@ -2,12 +2,14 @@ import assert from "node:assert/strict"
 import test from "node:test"
 
 import { YydsApi } from "../src/api.mjs"
-import { UsageReporter, userOf, walletWindow } from "../src/usage.mjs"
+import { UsageReporter, balanceWindow, spendWindow, tokensShort, usageWindow, userOf } from "../src/usage.mjs"
+import { siteToday } from "../src/dashboard.mjs"
 import { bad, makeFetch, ok, token } from "./helpers.mjs"
 
-function reporter(handler) {
+function reporter(handler, { today = null } = {}) {
   const { fetchImpl, calls } = makeFetch(handler)
-  return { usage: new UsageReporter({ api: new YydsApi({ fetchImpl }) }), calls }
+  const dashboard = { today: async (token) => (assert.ok(token, "the dashboard is read with the account's session"), today) }
+  return { usage: new UsageReporter({ api: new YydsApi({ fetchImpl }), dashboard }), calls }
 }
 
 test("the card reads the account's wallet, as a share of what was paid in", async () => {
@@ -52,7 +54,7 @@ test("a site failure leaves the sign-in alone", async () => {
 test("with no total paid in, the wallet is set aside and no share is invented", () => {
   // magpie: a window with balance but no used and no aside keeps Used 0, which
   // the card draws as 100% left and the history as a flat 100% line
-  const wallet = walletWindow(79.19)
+  const wallet = balanceWindow(79.19)
   assert.equal(wallet.aside, true)
   assert.equal(wallet.used, undefined)
   assert.equal(wallet.limit, undefined)
@@ -60,20 +62,20 @@ test("with no total paid in, the wallet is set aside and no share is invented", 
 
 test("a balance above what was ever paid in is no share either", () => {
   // gift credits can lift the balance over the total: a share would be negative
-  assert.equal(walletWindow(300, 0, 266.548).aside, true)
+  assert.equal(balanceWindow(300, 0, 266.548).aside, true)
 })
 
 test("the share moves the way a wallet moves: spent down, topped up", () => {
-  const before = walletWindow(50, 0, 200)
-  const spent = walletWindow(40, 0, 200)
-  const toppedUp = walletWindow(90, 0, 250)
+  const before = balanceWindow(50, 0, 200)
+  const spent = balanceWindow(40, 0, 200)
+  const toppedUp = balanceWindow(90, 0, 250)
   assert.ok(spent.used > before.used, "spending raises the share used")
   assert.ok(toppedUp.used < before.used, "a top-up raises the total and the balance")
   assert.equal(before.unit, "USD")
 })
 
 test("the wallet is a figure, in its own unit", () => {
-  assert.deepEqual(walletWindow(12.5), { name: "余额", balance: 12.5, unit: "USD", display: "$12.50", aside: true })
+  assert.deepEqual(balanceWindow(12.5), { name: "余额", balance: 12.5, unit: "USD", display: "$12.50", aside: true })
 })
 
 test("the card's name comes from what the site calls the account", () => {
@@ -81,4 +83,61 @@ test("the card's name comes from what the site calls the account", () => {
   assert.equal(userOf({ email: "a@b.c" }), "a@b.c")
   assert.equal(userOf({}, { username: "kept" }), "kept")
   assert.equal(userOf({}), "")
+})
+
+const TODAY = { date: "2026-11-18", requests: 104, tokens: 29_354_600, cost: 29.3546, actual: 3.0457 }
+
+test("today's spend is a share of the balance the day began with", () => {
+  const window = spendWindow(TODAY, 43.183359089)
+  assert.equal(window.name, "今日消费")
+  assert.equal(window.amount, 3.0457, "the site's actual_cost for today")
+  assert.equal(window.limit.toFixed(2), (3.0457 + 43.183359089).toFixed(2), "spent + what is left")
+  assert.equal(window.used.toFixed(2), "6.59")
+  assert.equal(window.aside, undefined, "a share, so its history draws")
+  assert.match(window.display, /\$3\.05 \/ \$46\.23 今晨余额/)
+})
+
+test("a day with nothing spent is text, not a share at zero", () => {
+  const window = spendWindow({ ...TODAY, actual: 0 }, 43)
+  assert.equal(window.aside, true, "0% used all day would be the flat 100% line again")
+  assert.equal(window.used, undefined)
+  assert.equal(window.display, "$0.00")
+  assert.equal(spendWindow(null, 43).aside, true)
+})
+
+test("today's calls and tokens read as the site's dashboard writes them", () => {
+  const window = usageWindow(TODAY)
+  assert.equal(window.name, "今日用量")
+  assert.equal(window.display, "104 次 · 29.4M tokens")
+  assert.equal(window.aside, true)
+  assert.equal(usageWindow(null), null)
+  assert.equal(usageWindow({ date: "x", requests: 0, tokens: 0 }), null)
+})
+
+test("counts are shortened the way the site shortens them", () => {
+  assert.equal(tokensShort(58), "58")
+  assert.equal(tokensShort(1037), "1.0K")
+  assert.equal(tokensShort(29_354_600), "29.4M")
+  assert.equal(tokensShort(829_000_000), "829.0M")
+  assert.equal(tokensShort(2_500_000_000), "2.5B")
+})
+
+test("the card carries the wallet, today's spend and today's usage", async () => {
+  const { usage } = reporter(
+    (url) =>
+      url.endsWith("/auth/me")
+        ? ok({ username: "sube", balance: 43.183359089, frozen_balance: 0, total_recharged: 266.548 })
+        : ok({}),
+    { today: TODAY },
+  )
+  const out = await usage.report({ type: "oauth", access: token() })
+  assert.deepEqual(out.windows.map((w) => w.name), ["余额", "今日消费", "今日用量"])
+  assert.equal(out.windows[1].amount, 3.0457)
+})
+
+test("the site's own day is counted in its zone", () => {
+  // 2026-11-18 16:30 in Shanghai is 08:30 UTC
+  assert.equal(siteToday(new Date("2026-11-18T08:30:00Z")), "2026-11-18")
+  // 2026-11-18 00:30 in Shanghai is still 2026-11-17 in UTC
+  assert.equal(siteToday(new Date("2026-11-17T16:30:00Z")), "2026-11-18")
 })

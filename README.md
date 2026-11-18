@@ -88,32 +88,23 @@ magpie plugin options /Users/sube/me/magpie-yyds '{"keys":[{"label":"GPT 稳定�
 | `captcha` | 站点给签到接了人机验证（现在是 Geetest），插件不代答：请到网站手动签一次 |
 | `failed` | 其它失败，带站点原话 |
 
-## 余额与曲线
+## 余额、今日消费与曲线
 
-站点给的是**预付余额**（`balance`）和一个累计总量（`total_recharged`，历史充值合计）。插件把余额表达成「累计充值里的剩余」这个份额交给 magpie：
+卡片上三项，和站点仪表盘对得上（`actual_cost`，实测今天站点 3.045654 → 卡片 3.045653518）：
 
 ```
 余额 84%（$43.18 / 累计充值 $266.55）
+今日消费 7%（$3.05 / $46.23 今晨余额）
+今日用量 104 次 · 11.4M tokens
 ```
 
-这样就有了真正的**曲线**（用量页的「余额」/卡片里的趋势）：
+- **余额**：站点只给余额，不给“总量”。插件用 `/auth/me` 的 `total_recharged`（历史充值合计）当分母，余额就成了「累计充值里的剩余」——花钱下降、充值上升，magpie 因此能画**曲线**。
+- **今日消费**：来自站点自己的仪表盘接口 `GET /usage/dashboard/snapshot-v2`（今天的 `actual_cost`），分母是「今晨余额 = 现在余额 + 今日消费」。这是一条**当天走高的曲线**，第二天零点重来；今天没花钱就只显示 `$0.00`（不画 0% 的假线）。
+- **今日用量**：同一次快照里的请求数与 Token，纯文本。
 
-- **花钱** → 余额降 → 剩余比例降 → 曲线向下；
-- **充值** → 余额和累计充值同时上升 → 曲线向上；
-- 卡片、菜单栏、`magpie quota`、`/v1/magpie/quotas` 都给同一组数（`used / amount / limit / unit`），路由也能按这个份额挑账号。
+`/usage` 那个明细列表（每次请求的模型、tokens、费用）站点也有，但 magpie 的插件卡片放不下列表；要看明细请到只因API 的「使用记录」页，或把 agent 指向本插件（`yyds`）后看 magpie 用量页的请求日志。
 
-账户如果还没有任何充值（`total_recharged` 为 0），或余额反而高于累计充值（赠送积分），就没有可信的分母：此时插件退回「纯余额」写法（`aside` 的钱包窗口），卡片只显示 `$43.18`，不画曲线，也不编造百分比。
-
-## 模型能力（图片 / 思考 / 上下文）
-
-站点 `/v1/models` 只给 id 和显示名。**是否支持图片、是否思考、上下文多长、官方价格**，插件从 magpie 自己的 models.dev 目录（`<cache>/magpie/models.json`）按 id 补齐——和你自建的 provider 用的是同一份数据：
-
-- 优先用站点 `/v1/models` 里 `owned_by` 指向的厂商（`openai` / `xai` / `zhipu`→`zai` …），其次按内置的厂商优先顺序，最后任意一个知道这个 id 的厂商；
-- 目录里没有的 id 就保持“未知”：不编造能力，也不编造上下文；
-- 价格用的是 models.dev 的官方价，站点分组倍率（例如 ×0.14）不体现在这里；
-- 目录文件读一次缓存 60 秒，文件变了会重读；文件不存在或读坏，就当作“未知”，不影响其他功能。
-
-## 数据来源
+## 数据来源## 数据来源
 
 | 用途 | 请求 |
 | --- | --- |
@@ -121,6 +112,7 @@ magpie plugin options /Users/sube/me/magpie-yyds '{"keys":[{"label":"GPT 稳定�
 | 续期 | `POST /api/v1/auth/refresh` |
 | 账号 / 余额 | `GET /api/v1/auth/me` |
 | 签到 | `GET` + `POST /api/v1/activity/checkin` |
+| 今日消费 / 今日用量 | `GET /api/v1/usage/dashboard/snapshot-v2?timezone=Asia/Shanghai` |
 | 站点开关（人机验证） | `GET /api/v1/settings/public` |
 | 每个密钥的模型 | `GET /v1/models`（Bearer 该密钥） |
 | 对话 | `POST /v1/chat/completions`（Bearer 选中的密钥） |
