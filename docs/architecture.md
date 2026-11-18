@@ -98,7 +98,7 @@ page/index.html+app.js 页面：密钥的列表与编辑（bridge 只读 options
 page/keys.js           页面的纯逻辑（读取/校验/合并），被页面和测试共用
 ```
 
-分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 108 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
+分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 108 项，另加 `usage/` 的 20 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
 
 ## 5. 关键流程
 
@@ -223,6 +223,30 @@ GET /usage/dashboard/snapshot-v2?timezone=Asia/Shanghai   （会话 token）
 /api/usage/quotas  [ {余额 83.8%}, {今日消费 6.59%}, {今日用量 104 次 · 11.4M tokens} ]
 quota-history      {"今日消费":[{left:93.41}], "余额":[{left:16.2},{left:16.2}]}
 ```
+
+### 5.8 配套页面包 `usage/`（金额曲线）
+
+magpie 的插件卡片只能画**百分比**曲线（`quota-history` 记 `left`），且从插件开始上报那天才有点；站点自己的金额历史（累计充值 266 → 现在 43）在 magpie 的原生 UI 里没有位置。所以另起一个包 `magpie-yyds-usage`：
+
+```
+page/index.html   带路页（页面 CSP connect-src 'none'，唯一能做的就是导航自己）
+page/boot.js      导航到 127.0.0.1:3491（magpie web 时用 bridge 给的 magpie.service）
+lib/server.mjs    本地服务：/ 与 /api/summary，只监听 127.0.0.1 并校验 Host
+lib/site.mjs      会话读 /auth/me 与 /usage（分页 500，最多 40 页）
+web/*             页面与 SVG 折线/柱状（无外部资源）
+```
+
+余额曲线的算式（站点没有余额历史接口）：
+
+```
+balance(t) = 余额_now + Σ actual_cost(t 之后的请求)
+```
+
+即从今天往回走，每遇到一笔消费就加上它，于是花钱的日子是一段向下的台阶。窗口内的充值不在算式里 → `toppedUp` 为真时页面标注「倒推值偏高」。
+
+实测（真站，90 天）：7630 条请求、区间消费 $148.55、曲线 401 点（起点 $191.73 → 今天 $43.18）、今日 $3.05。
+
+站点偶发丢连接：`#ask` 对网络错误/429/5xx 重试 3 次（300ms、900ms 退避），单页仍失败则保留已读部分并标 `partial`；`setDefaultResultOrder("ipv4first")` 避免 IPv6 路由不通时每个请求先等一次超时。
 
 ## 6. 失败矩阵
 
