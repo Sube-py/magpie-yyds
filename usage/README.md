@@ -47,6 +47,20 @@ magpie plugin add /path/to/magpie-yyds/usage
 
 页面在侧栏「插件 → 只因API 用量」。服务端口默认 3491，可在插件选项里改（`{"port": 3491}`）。
 
+## 给卡片补历史（可选）
+
+magpie 卡片上的「余额」曲线只从插件开始上报那天有点，所以一开始是平的。站点的账本里有过去，这个工具把它倒推出来写进 magpie 自己的 `quota-history.json`（会先备份）：
+
+```sh
+node tools/backfill-curve.mjs            # 45 天，每 6 小时一个点
+node tools/backfill-curve.mjs --days 30 --every 3
+node tools/backfill-curve.mjs --dry-run  # 只看不写
+```
+
+- 只补**比已有更早**的点，不动 magpie 之后自己记的点；
+- 只写 `yyds|<账号>` 的「余额」这一条；
+- 窗口内有充值时倒推会偏高，工具会提示。
+
 ## 限制
 
 - 需要先装 `magpie-yyds` 并登录一次（本页只用它的会话，不改任何东西）；

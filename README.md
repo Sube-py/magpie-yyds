@@ -114,6 +114,12 @@ magpie plugin add /Users/sube/me/magpie-yyds/usage
 
 侧栏「插件 → 只因API 用量」：余额走势（美元折线）、每日消费柱状、按模型、最近请求，7/30/90 天可切。它用一个只监听 127.0.0.1 的本地服务读站点的账本（页面本身没有网络），只读、不改任何东西。
 
+卡片上的「余额」曲线一开始是平的（magpie 只从插件开始上报那天记点）。想让它立刻有历史，用配套工具按站点账本倒推补上：
+
+```sh
+node usage/tools/backfill-curve.mjs --days 45   # 会先备份 magpie 的 quota-history.json
+```
+
 ## 数据来源## 配套页面：只因API 用量
 
 金额的余额走势（266 → 43 这种）magpie 的插件卡片画不出来（它只画百分比，且从插件开始上报才有点），所以另有一个页面包 [`usage/`](usage/README.md)：
@@ -123,6 +129,12 @@ magpie plugin add /Users/sube/me/magpie-yyds/usage
 ```
 
 侧栏「插件 → 只因API 用量」：余额走势（美元折线）、每日消费柱状、按模型、最近请求，7/30/90 天可切。它用一个只监听 127.0.0.1 的本地服务读站点的账本（页面本身没有网络），只读、不改任何东西。
+
+卡片上的「余额」曲线一开始是平的（magpie 只从插件开始上报那天记点）。想让它立刻有历史，用配套工具按站点账本倒推补上：
+
+```sh
+node usage/tools/backfill-curve.mjs --days 45   # 会先备份 magpie 的 quota-history.json
+```
 
 ## 数据来源
 
