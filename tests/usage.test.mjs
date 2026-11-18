@@ -10,20 +10,27 @@ function reporter(handler) {
   return { usage: new UsageReporter({ api: new YydsApi({ fetchImpl }) }), calls }
 }
 
-test("the card reads the account's wallet", async () => {
+test("the card reads the account's wallet, as a share of what was paid in", async () => {
   const { usage, calls } = reporter(() =>
-    ok({ id: 822, username: "sube", email: "sube@example.com", balance: 79.190222963, frozen_balance: 0 }),
+    ok({ id: 822, username: "sube", email: "sube@example.com", balance: 43.183359089, frozen_balance: 0, total_recharged: 266.548 }),
   )
   const out = await usage.report({ type: "oauth", access: token() })
   assert.equal(out.user, "sube")
-  assert.equal(out.balance, "$79.19")
+  assert.equal(out.balance, "$43.18")
   assert.equal(out.signIn, "kept")
-  assert.deepEqual(out.windows, [{ name: "余额", balance: 79.190222963, unit: "USD", display: "$79.19", aside: true }])
+  const [window] = out.windows
+  assert.equal(window.name, "余额")
+  assert.equal(window.limit, 266.548, "everything paid in is the total")
+  assert.equal(window.amount, 266.548 - 43.183359089, "what was spent of it")
+  assert.equal(window.used.toFixed(1), "83.8")
+  assert.equal(window.aside, undefined, "a share is not set aside: magpie keeps its history")
+  assert.equal(window.balance, undefined)
+  assert.match(window.display, /\$43\.18 \/ 累计充值 \$266\.55/)
   assert.equal(calls[0].url, "https://www.yydsapi.uno/api/v1/auth/me")
 })
 
 test("a frozen balance is said beside the wallet", async () => {
-  const { usage } = reporter(() => ok({ username: "sube", balance: 3, frozen_balance: 0.5 }))
+  const { usage } = reporter(() => ok({ username: "sube", balance: 3, frozen_balance: 0.5, total_recharged: 20 }))
   const out = await usage.report({ type: "oauth", access: token() })
   assert.match(out.windows[0].display, /冻结 \$0\.50/)
 })
@@ -42,12 +49,27 @@ test("a site failure leaves the sign-in alone", async () => {
   assert.match(out.error, /服务暂时不可用/)
 })
 
-test("the wallet is set aside, so no share is invented for it", () => {
+test("with no total paid in, the wallet is set aside and no share is invented", () => {
   // magpie: a window with balance but no used and no aside keeps Used 0, which
   // the card draws as 100% left and the history as a flat 100% line
-  assert.equal(walletWindow(79.19).aside, true)
-  assert.equal(walletWindow(79.19).used, undefined)
-  assert.equal(walletWindow(79.19).limit, undefined)
+  const wallet = walletWindow(79.19)
+  assert.equal(wallet.aside, true)
+  assert.equal(wallet.used, undefined)
+  assert.equal(wallet.limit, undefined)
+})
+
+test("a balance above what was ever paid in is no share either", () => {
+  // gift credits can lift the balance over the total: a share would be negative
+  assert.equal(walletWindow(300, 0, 266.548).aside, true)
+})
+
+test("the share moves the way a wallet moves: spent down, topped up", () => {
+  const before = walletWindow(50, 0, 200)
+  const spent = walletWindow(40, 0, 200)
+  const toppedUp = walletWindow(90, 0, 250)
+  assert.ok(spent.used > before.used, "spending raises the share used")
+  assert.ok(toppedUp.used < before.used, "a top-up raises the total and the balance")
+  assert.equal(before.unit, "USD")
 })
 
 test("the wallet is a figure, in its own unit", () => {

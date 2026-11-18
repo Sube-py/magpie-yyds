@@ -27,26 +27,45 @@ export class UsageReporter {
     }
     const balance = number(me?.balance)
     const frozen = number(me?.frozen_balance)
+    const recharged = number(me?.total_recharged)
     return {
       user: userOf(me, record),
       balance: `$${balance.toFixed(2)}`,
-      windows: [walletWindow(balance, frozen)],
+      windows: [walletWindow(balance, frozen, recharged)],
       signIn: renewed ? "renewed" : "kept",
     }
   }
 }
 
 /**
- * The wallet, which has no total it is a share of: a figure, not a meter.
+ * The wallet, as the site's own arithmetic makes it a share.
  *
- * `aside: true` is what makes magpie read it that way. A window that says
- * `balance` but neither `used` nor `aside` leaves `Used` at 0, which the card
- * draws as "100% left" and the history draws as a flat 100% line — a share
- * nobody said (magpie's own note on that, #4825). Set aside, it is the figure
- * and its text, and no line is invented for it.
+ * A prepaid balance has no total of its own, and magpie draws no curve for a
+ * window that says only `balance` — its card shows a figure and its history
+ * nothing (a share nobody said would be a flat 100% line, #4825). But the site
+ * does tell a total: `total_recharged`, everything ever paid in. Against that,
+ * the balance is a share that moves the way a wallet moves — down as it is
+ * spent, up when it is topped up (the total grows too) — so magpie keeps it as
+ * a window with `amount`/`limit`, and its history draws the curve.
+ *
+ * A site that tells no total (a fresh account, credits only from gifts) keeps
+ * the plain wallet: the figure, set aside, no invented curve.
  */
-export function walletWindow(balance, frozen = 0) {
-  const display = frozen > 0 ? `$${balance.toFixed(2)} · 冻结 $${frozen.toFixed(2)}` : `$${balance.toFixed(2)}`
+export function walletWindow(balance, frozen = 0, recharged = 0) {
+  const frozenText = frozen > 0 ? ` · 冻结 $${frozen.toFixed(2)}` : ""
+  const total = Number(recharged)
+  if (Number.isFinite(total) && total > 0 && balance <= total) {
+    const used = total - balance
+    return {
+      name: "余额",
+      used: Math.min(100, Math.max(0, (100 * used) / total)),
+      amount: used,
+      limit: total,
+      unit: "USD",
+      display: `$${balance.toFixed(2)} / 累计充值 $${total.toFixed(2)}${frozenText}`,
+    }
+  }
+  const display = `$${balance.toFixed(2)}${frozenText}`
   return { name: "余额", balance, unit: "USD", display, aside: true }
 }
 

@@ -97,7 +97,7 @@ page/index.html+app.js 页面：密钥的列表与编辑（bridge 只读 options
 page/keys.js           页面的纯逻辑（读取/校验/合并），被页面和测试共用
 ```
 
-分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 100 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
+分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 102 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
 
 ## 5. 关键流程
 
@@ -174,27 +174,26 @@ fetch(请求):
 
 为什么要读 body：密钥的选择只取决于 **模型**（分组决定模型），而 `loader` 的 `apiKey` 在请求之间是固定的，所以按请求改 `Authorization` 只能放在 `fetch` 里（raccoon 等插件也是这么做的）。
 
-### 5.6 用量（钱包）
+### 5.6 用量：余额作为「累计充值里的剩余」
+
+站点 `/auth/me` 给 `balance` 与 `total_recharged`（历史充值合计）。窗口报成份额：
 
 ```
-{ name: "余额", balance: 43.18, unit: "USD", display: "$43.18", aside: true }
+{ name: "余额", used: 83.8, amount: 223.36, limit: 266.55, unit: "USD",
+  display: "$43.18 / 累计充值 $266.55" }
 ```
 
-三个字段缺一不可，原因在 magpie 0.1.4404 的 `quotaOfPlugin`：
+为什么不是纯钱包：magpie 的**余额曲线**（`balanceTrend`）只由自建 provider/密钥的余额轮询喂（`noteBalanceHistory` 只在 `balance.go` 里被调用），插件账户的余额永远进不了那条曲线；而纯钱包窗口（只有 `balance`）在 0.1.4404 里还会因为 `Used` 保持 0 被画成「剩余 100%」和一条平的 100% 线（`#4825`）。把余额表达成「累计充值里的剩余」后：`used/amount/limit` 齐全 → 额度历史（`quota-history.json` → `/api/usage/quotas/history`）开始记录，曲线随之出现，且方向正确（花钱下降、充值上升）。
 
-```go
-if used != nil { w.Used = *used }
-else if x.Aside { w.noShare = true }     // ← 钱包走这条：没有份额可言
-else if x.Balance == nil { w.Text, w.Aside = true, true }
+实测（本机真站）：
+
+```
+/api/usage/quotas          windows: [{"name":"余额","used":83.799,"amount":223.36,"limit":266.548,"unit":"USD", …}]
+/api/usage/quotas/history  {"provider":"yyds","user":"sube","lines":[{"name":"余额","points":[{"at":"…08:12:00Z","left":16.2}]}]}
+magpie quota yyds          余额 84% ($43.18 / 累计充值 $266.55)  $43.18 left
 ```
 
-只发 `balance` 而不发 `aside` 时三个分支都不进，`Used` 保持 0，于是：卡片画成「剩余 100%」，额度历史被写成一条平的 100% 线（magpie 源码注释里正是这个坑 `#4825`）。加上 `aside: true` 后：
-
-- GUI 的 `quotaNoShare(w)` 命中（`w.balance != null`）→ 不画进度条，只显示 `quotaText` 的「43.18 USD left」；
-- 额度历史不再记录这条线（实测：修好后新的读入不再追加点）；
-- `balance` 数字仍在，`magpie accounts` / `/v1/magpie/quotas` 照样给出余额，路由也能按余额比较同单位账号。
-
-余额的“走势”因此不是一条百分比曲线，而是：magpie 用账本里 `spentSince` 之后的消费把余额往下扣（`spent`），下次读到站点余额时校正；真正的消费趋势看用量页的账本视图。
+没有可信分母时（`total_recharged` 为 0，或余额高于累计充值——赠送积分会让余额超过充值额）退回纯钱包：`{ name, balance, unit, display, aside: true }`。`aside` 是必须的：只给 `balance` 不给 `aside` 时 `quotaOfPlugin` 三个分支都不进，`Used` 停在 0。
 
 ## 6. 失败矩阵
 
