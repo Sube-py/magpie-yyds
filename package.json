@@ -1,6 +1,6 @@
 {
   "name": "magpie-yyds",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "只因API (yydsapi.uno) in magpie: the account's daily check-in and balance, and chats on its API keys",
   "type": "module",
   "main": "./index.mjs",

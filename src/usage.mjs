@@ -36,10 +36,18 @@ export class UsageReporter {
   }
 }
 
-/** The wallet, which has no total it is a share of: a figure, not a meter. */
+/**
+ * The wallet, which has no total it is a share of: a figure, not a meter.
+ *
+ * `aside: true` is what makes magpie read it that way. A window that says
+ * `balance` but neither `used` nor `aside` leaves `Used` at 0, which the card
+ * draws as "100% left" and the history draws as a flat 100% line — a share
+ * nobody said (magpie's own note on that, #4825). Set aside, it is the figure
+ * and its text, and no line is invented for it.
+ */
 export function walletWindow(balance, frozen = 0) {
   const display = frozen > 0 ? `$${balance.toFixed(2)} · 冻结 $${frozen.toFixed(2)}` : `$${balance.toFixed(2)}`
-  return { name: "余额", balance, unit: "USD", display }
+  return { name: "余额", balance, unit: "USD", display, aside: true }
 }
 
 /** The account's name on the card: the site's username, else its email. */

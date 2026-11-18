@@ -18,7 +18,7 @@ test("the card reads the account's wallet", async () => {
   assert.equal(out.user, "sube")
   assert.equal(out.balance, "$79.19")
   assert.equal(out.signIn, "kept")
-  assert.deepEqual(out.windows, [{ name: "余额", balance: 79.190222963, unit: "USD", display: "$79.19" }])
+  assert.deepEqual(out.windows, [{ name: "余额", balance: 79.190222963, unit: "USD", display: "$79.19", aside: true }])
   assert.equal(calls[0].url, "https://www.yydsapi.uno/api/v1/auth/me")
 })
 
@@ -42,8 +42,16 @@ test("a site failure leaves the sign-in alone", async () => {
   assert.match(out.error, /服务暂时不可用/)
 })
 
+test("the wallet is set aside, so no share is invented for it", () => {
+  // magpie: a window with balance but no used and no aside keeps Used 0, which
+  // the card draws as 100% left and the history as a flat 100% line
+  assert.equal(walletWindow(79.19).aside, true)
+  assert.equal(walletWindow(79.19).used, undefined)
+  assert.equal(walletWindow(79.19).limit, undefined)
+})
+
 test("the wallet is a figure, in its own unit", () => {
-  assert.deepEqual(walletWindow(12.5), { name: "余额", balance: 12.5, unit: "USD", display: "$12.50" })
+  assert.deepEqual(walletWindow(12.5), { name: "余额", balance: 12.5, unit: "USD", display: "$12.50", aside: true })
 })
 
 test("the card's name comes from what the site calls the account", () => {

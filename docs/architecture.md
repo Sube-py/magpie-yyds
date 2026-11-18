@@ -97,7 +97,7 @@ page/index.html+app.js 页面：密钥的列表与编辑（bridge 只读 options
 page/keys.js           页面的纯逻辑（读取/校验/合并），被页面和测试共用
 ```
 
-分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 99 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
+分层原则：**只有 `plugin.mjs` 认识 magpie**，其它模块只认识「站点 HTTP」和「纯数据」。所以每个模块都能在 Node 里直接单测（`tests/` 里 100 项：页面逻辑、静态检查，以及在最小 DOM 上跑真实 `page/app.js` 的交互）。
 
 ## 5. 关键流程
 
@@ -174,9 +174,27 @@ fetch(请求):
 
 为什么要读 body：密钥的选择只取决于 **模型**（分组决定模型），而 `loader` 的 `apiKey` 在请求之间是固定的，所以按请求改 `Authorization` 只能放在 `fetch` 里（raccoon 等插件也是这么做的）。
 
-### 5.6 用量
+### 5.6 用量（钱包）
 
-余额是钱包窗口 `{name: "余额", balance, unit: "USD"}`，不带 `used`/`limit`，所以 magpie 把它当「有多少钱」而不是「用了百分之几」，路由也会据此比较同单位账号的余量。
+```
+{ name: "余额", balance: 43.18, unit: "USD", display: "$43.18", aside: true }
+```
+
+三个字段缺一不可，原因在 magpie 0.1.4404 的 `quotaOfPlugin`：
+
+```go
+if used != nil { w.Used = *used }
+else if x.Aside { w.noShare = true }     // ← 钱包走这条：没有份额可言
+else if x.Balance == nil { w.Text, w.Aside = true, true }
+```
+
+只发 `balance` 而不发 `aside` 时三个分支都不进，`Used` 保持 0，于是：卡片画成「剩余 100%」，额度历史被写成一条平的 100% 线（magpie 源码注释里正是这个坑 `#4825`）。加上 `aside: true` 后：
+
+- GUI 的 `quotaNoShare(w)` 命中（`w.balance != null`）→ 不画进度条，只显示 `quotaText` 的「43.18 USD left」；
+- 额度历史不再记录这条线（实测：修好后新的读入不再追加点）；
+- `balance` 数字仍在，`magpie accounts` / `/v1/magpie/quotas` 照样给出余额，路由也能按余额比较同单位账号。
+
+余额的“走势”因此不是一条百分比曲线，而是：magpie 用账本里 `spentSince` 之后的消费把余额往下扣（`spent`），下次读到站点余额时校正；真正的消费趋势看用量页的账本视图。
 
 ## 6. 失败矩阵
 

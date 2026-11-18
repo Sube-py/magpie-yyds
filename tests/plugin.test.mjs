@@ -129,7 +129,7 @@ test("a key the site refuses is passed over for one that serves the model", asyn
 test("the account's card reads its wallet", async () => {
   const out = await plugin.auth.usage(async () => record())
   assert.equal(out.user, "sube")
-  assert.deepEqual(out.windows, [{ name: "余额", balance: state.balance, unit: "USD", display: "$79.19" }])
+  assert.deepEqual(out.windows, [{ name: "余额", balance: state.balance, unit: "USD", display: "$79.19", aside: true }])
 })
 
 test("the check-in claims once, then says the day is in", async () => {
