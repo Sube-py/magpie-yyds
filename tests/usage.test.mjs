@@ -87,22 +87,19 @@ test("the card's name comes from what the site calls the account", () => {
 
 const TODAY = { date: "2026-11-18", requests: 104, tokens: 29_354_600, cost: 29.3546, actual: 3.0457 }
 
-test("today's spend is a share of the balance the day began with", () => {
-  const window = spendWindow(TODAY, 43.183359089)
+test("today's spend is an amount, with no meter and no curve of its own", () => {
+  const window = spendWindow(TODAY)
   assert.equal(window.name, "今日消费")
-  assert.equal(window.amount, 3.0457, "the site's actual_cost for today")
-  assert.equal(window.limit.toFixed(2), (3.0457 + 43.183359089).toFixed(2), "spent + what is left")
-  assert.equal(window.used.toFixed(2), "6.59")
-  assert.equal(window.aside, undefined, "a share, so its history draws")
-  assert.match(window.display, /\$3\.05 \/ \$46\.23 今晨余额/)
+  assert.equal(window.display, "$3.05")
+  assert.equal(window.aside, true)
+  assert.equal(window.used, undefined, "no share: the balance's line is the only one")
+  assert.equal(window.amount, undefined)
+  assert.equal(window.limit, undefined)
 })
 
-test("a day with nothing spent is text, not a share at zero", () => {
-  const window = spendWindow({ ...TODAY, actual: 0 }, 43)
-  assert.equal(window.aside, true, "0% used all day would be the flat 100% line again")
-  assert.equal(window.used, undefined)
-  assert.equal(window.display, "$0.00")
-  assert.equal(spendWindow(null, 43).aside, true)
+test("a day with nothing spent still reads as an amount", () => {
+  assert.equal(spendWindow({ ...TODAY, actual: 0 }).display, "$0.00")
+  assert.equal(spendWindow(null).display, "$0.00")
 })
 
 test("today's calls and tokens read as the site's dashboard writes them", () => {
@@ -132,7 +129,13 @@ test("the card carries the wallet, today's spend and today's usage", async () =>
   )
   const out = await usage.report({ type: "oauth", access: token() })
   assert.deepEqual(out.windows.map((w) => w.name), ["余额", "今日消费", "今日用量"])
-  assert.equal(out.windows[1].amount, 3.0457)
+  assert.equal(out.windows[1].display, "$3.05")
+  assert.equal(out.windows[1].aside, true)
+  assert.deepEqual(
+    out.windows.filter((w) => w.used !== undefined).map((w) => w.name),
+    ["余额"],
+    "one curve only: the balance's",
+  )
 })
 
 test("the site's own day is counted in its zone", () => {

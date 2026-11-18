@@ -42,7 +42,7 @@ export class UsageReporter {
     return {
       user: userOf(me, record),
       balance: `$${balance.toFixed(2)}`,
-      windows: [balanceWindow(balance, frozen, recharged), spendWindow(today, balance), usageWindow(today)].filter(Boolean),
+      windows: [balanceWindow(balance, frozen, recharged), spendWindow(today), usageWindow(today)].filter(Boolean),
       signIn: renewed ? "renewed" : "kept",
     }
   }
@@ -81,24 +81,14 @@ export function balanceWindow(balance, frozen = 0, recharged = 0) {
 }
 
 /**
- * Today's spend, against the balance the day began with (`balance + spent`).
- * A day with nothing spent is no share: the site's `0` would draw a window
- * that is 100% left all day, which is the flat line magpie warns about.
+ * Today's spend, as the site's dashboard states it: an amount, nothing more.
+ *
+ * It is not a share and gets no curve — the day has no total it is part of, and
+ * a share invented for it would draw a line of its own next to the balance's.
  */
-export function spendWindow(today, balance = 0) {
+export function spendWindow(today) {
   const spent = Number(today?.actual) || 0
-  if (!(spent > 0)) {
-    return { name: "今日消费", display: "$0.00", unit: "USD", aside: true }
-  }
-  const budget = spent + Math.max(0, Number(balance) || 0)
-  return {
-    name: "今日消费",
-    used: Math.min(100, (100 * spent) / budget),
-    amount: spent,
-    limit: budget,
-    unit: "USD",
-    display: `$${spent.toFixed(2)} / $${budget.toFixed(2)} 今晨余额`,
-  }
+  return { name: "今日消费", display: `$${spent.toFixed(2)}`, unit: "USD", aside: true }
 }
 
 /** Today's calls and tokens, as the site's dashboard counts them. */
