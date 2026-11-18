@@ -10,7 +10,8 @@ const money4 = (n) => {
 }
 const count = (n) => (Number(n) || 0).toLocaleString("zh-CN")
 
-const state = { days: Number(new URLSearchParams(location.search).get("days")) || 30, data: null }
+const query = new URLSearchParams(location.search)
+const state = { days: Number(query.get("days")) || 30, data: null }
 
 function say(text, bad = false) {
   const box = $("error")
@@ -102,65 +103,18 @@ function lineChart(host, points, { height = 180, yFormat = money4 } = {}) {
   host.append(svg)
 }
 
-/** Daily bars, one a day, the tallest day at the top. */
-function barChart(host, days, { height = 140 } = {}) {
-  host.replaceChildren()
-  if (!days.length) return
-  const W = 720
-  const H = height
-  const pad = { l: 52, r: 10, t: 8, b: 20 }
-  const top = Math.max(...days.map((d) => d.cost), 0.01)
-  const slot = (W - pad.l - pad.r) / days.length
-  const width = Math.max(1, slot * 0.7)
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg")
-  svg.setAttribute("viewBox", `0 0 ${W} ${H}`)
-  svg.setAttribute("preserveAspectRatio", "none")
-  svg.setAttribute("class", "svg-chart")
-  for (const value of [0, top / 2, top]) {
-    const y = H - pad.b - ((value / top) * (H - pad.t - pad.b))
-    const grid = document.createElementNS("http://www.w3.org/2000/svg", "line")
-    grid.setAttribute("x1", pad.l)
-    grid.setAttribute("x2", W - pad.r)
-    grid.setAttribute("y1", y)
-    grid.setAttribute("y2", y)
-    grid.setAttribute("class", "grid")
-    svg.append(grid)
-    const label = document.createElementNS("http://www.w3.org/2000/svg", "text")
-    label.setAttribute("x", pad.l - 8)
-    label.setAttribute("y", y + 4)
-    label.setAttribute("text-anchor", "end")
-    label.setAttribute("class", "tick")
-    label.textContent = money4(value)
-    svg.append(label)
-  }
-  days.forEach((day, i) => {
-    if (day.cost <= 0) return
-    const h = (day.cost / top) * (H - pad.t - pad.b)
-    const bar = document.createElementNS("http://www.w3.org/2000/svg", "rect")
-    bar.setAttribute("x", pad.l + i * slot + (slot - width) / 2)
-    bar.setAttribute("y", H - pad.b - h)
-    bar.setAttribute("width", width)
-    bar.setAttribute("height", Math.max(1, h))
-    bar.setAttribute("class", "bar")
-    const title = document.createElementNS("http://www.w3.org/2000/svg", "title")
-    title.textContent = `${day.date} · ${money(day.cost)} · ${count(day.requests)} 次`
-    bar.append(title)
-    svg.append(bar)
-  })
-  host.append(svg)
-}
-
 function dayOf(at) {
   return new Date(at).toLocaleDateString("zh-CN", { month: "numeric", day: "numeric" })
 }
 
 function tiles(data) {
   const spent = data.spent
+  const days = Math.max(1, Math.round((Date.parse(data.to) - Date.parse(data.from)) / 86_400_000))
   const left = data.recharged > 0 ? data.balance / data.recharged : null
   return [
     { label: "余额", value: money(data.balance), sub: data.recharged ? `累计充值 ${money(data.recharged)}` : "" },
     { label: "今日消费", value: money(data.today?.cost), sub: `${count(data.today?.requests)} 次` },
-    { label: `${data.days.length} 天消费`, value: money(spent), sub: `${count(data.requests)} 次请求` },
+    { label: `${days} 天消费`, value: money(spent), sub: `${count(data.requests)} 次请求` },
     {
       label: "剩余比例",
       value: left === null ? "—" : `${(left * 100).toFixed(1)}%`,
@@ -193,7 +147,6 @@ function paint() {
     ? "窗口内有充值：倒推值偏高"
     : "从今天的余额按之后每笔消费倒推"
   lineChart($("curve"), data.curve.map((p) => ({ x: p.at, y: p.amount })))
-  barChart($("daily"), data.days)
 
   $("models").replaceChildren(
     ...data.models.slice(0, 8).map((model) => {
@@ -216,34 +169,41 @@ function escapeHtml(text) {
   return String(text).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c])
 }
 
-async function load(days = state.days) {
-  state.days = days
-  say("")
-  $("ranges").setAttribute("aria-busy", "true")
-  try {
-    const res = await fetch(`/api/summary?days=${days}`, { headers: { accept: "application/json" } })
-    const data = await res.json()
-    if (data?.error) {
-      state.data = null
-      say(data.error, true)
-      return
-    }
-    state.data = data
-    paint()
-  } catch (error) {
-    say(`读不到数据：${error?.message ?? error}`, true)
-  } finally {
-    $("ranges").removeAttribute("aria-busy")
+/**
+ * The numbers come in with the page (`<script id="summary">`), not from a
+ * fetch: magpie's frame is sandboxed, so its origin is opaque and every fetch
+ * is a cross-origin one. Another range is another load of the page.
+ */
+function load() {
+  const embedded = document.getElementById("summary")
+  if (!embedded) {
+    say("页面没有带上数据：请刷新一次", true)
+    return
   }
+  let data
+  try {
+    data = JSON.parse(embedded.textContent || "{}")
+  } catch (error) {
+    say(`数据读不懂：${error?.message ?? error}`, true)
+    return
+  }
+  if (data?.error) {
+    say(data.error, true)
+    return
+  }
+  state.data = data
+  paint()
 }
 
 $("ranges").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-days]")
-  if (button) load(Number(button.dataset.days))
+  if (!button) return
+  const next = new URLSearchParams(location.search)
+  next.set("days", button.dataset.days)
+  location.search = next.toString()
 })
 
 // the window's theme, as magpie names it in the URL it was opened with
-const query = new URLSearchParams(location.search)
 if (query.get("theme") === "dark") document.documentElement.dataset.theme = "dark"
 if (query.get("theme") === "light") document.documentElement.dataset.theme = "light"
 

@@ -221,7 +221,6 @@ export function summary({ me, requests, from, to, now = Date.now() }) {
     today,
     spent: round2(spentInRange),
     requests: requests.length,
-    days,
     models: byModel(requests),
     curve: balanceCurve(requests, { balanceNow: balance, now }),
     recent: [...requests].reverse().slice(0, 40),

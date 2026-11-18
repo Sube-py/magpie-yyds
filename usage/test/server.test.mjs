@@ -36,6 +36,7 @@ test("the page reaches nothing but its own service", () => {
     const text = readFileSync(join(root, "web", file), "utf8")
     assert.doesNotMatch(text, /https?:\/\/(?!www\.w3\.org)/, `${file} names no remote host`)
     assert.doesNotMatch(text, /magpie\.read\(/, `${file} reads nothing through the bridge`)
+    assert.doesNotMatch(text, /\bfetch\(/, `${file} fetches nothing: its numbers come with the page`)
   }
   const boot = readFileSync(join(root, "page/boot.js"), "utf8")
   assert.match(boot, /127\.0\.0\.1/, "the boot page knows the local service")
@@ -83,7 +84,11 @@ test("the service answers its page and its summary, and refuses other hosts", ()
       const base = `http://127.0.0.1:${server.port}`
       const page = await fetch(`${base}/`)
       assert.equal(page.status, 200)
-      assert.match(await page.text(), /只因API 用量/)
+      const html = await page.text()
+      assert.match(html, /只因API 用量/)
+      // the numbers ride with the page: a sandboxed frame can't fetch
+      assert.match(html, /<script id="summary" type="application\/json">/)
+      assert.match(html, /"balance":43\.18/)
       const summary = await (await fetch(`${base}/api/summary?days=7`)).json()
       assert.equal(summary.user, "sube")
       assert.equal(summary.balance, 43.18)

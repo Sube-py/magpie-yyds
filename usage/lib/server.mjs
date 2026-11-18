@@ -31,6 +31,19 @@ export async function startServer({ port = 3491, dir = configDir(), site = new S
   const server = createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`)
     if (!hostAllowed(req)) return send(res, 403, { error: "只服务于 magpie 窗口里的页面" })
+    // magpie's page frame is sandboxed, so its origin is `null` and its fetch is
+    // cross-origin even when the URL looks same-origin: answer it as such
+    cors(req, res)
+    if (req.method === "OPTIONS") {
+      res.writeHead(204)
+      return res.end()
+    }
+    // the page itself carries its numbers: a sandboxed frame's fetch is an
+    // opaque-origin request, and one less thing to get wrong
+    if (url.pathname === "/" || url.pathname === "/index.html") {
+      const data = await readSummary({ dir, site, url })
+      return page(res, data)
+    }
     if (url.pathname === "/api/summary") return send(res, 200, await readSummary({ dir, site, url }), false)
     return file(res, url.pathname)
   })
@@ -54,6 +67,17 @@ async function readSummary({ dir, site, url }) {
   }
 }
 
+/**
+ * The frame's origin is opaque (`null`), so `*` is what it can be given: the
+ * service carries no cookies and reads nothing but the account's own session.
+ */
+function cors(req, res) {
+  res.setHeader("access-control-allow-origin", "*")
+  res.setHeader("access-control-allow-methods", "GET, OPTIONS")
+  res.setHeader("access-control-allow-headers", "accept, content-type")
+  res.setHeader("access-control-max-age", "600")
+}
+
 function hostAllowed(req) {
   const host = String(req.headers.host ?? "").toLowerCase()
   const name = host.replace(/:\d+$/, "")
@@ -66,6 +90,18 @@ function send(res, status, body, cache = false) {
     "cache-control": cache ? "max-age=60" : "no-store",
   })
   res.end(JSON.stringify(body))
+}
+
+/** index.html with the summary in it, as JSON in a script tag. */
+function page(res, data) {
+  const html = readFileSync(join(WEB, "index.html"), "utf8")
+  const json = JSON.stringify(data).replace(/</g, "\\u003c")
+  const body = html.replace(
+    "</head>",
+    `  <script id="summary" type="application/json">${json}</script>\n</head>`,
+  )
+  res.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" })
+  res.end(body)
 }
 
 function file(res, pathname) {

@@ -231,7 +231,7 @@ magpie 的插件卡片只能画**百分比**曲线（`quota-history` 记 `left`�
 ```
 page/index.html   带路页（页面 CSP connect-src 'none'，唯一能做的就是导航自己）
 page/boot.js      导航到 127.0.0.1:3491（magpie web 时用 bridge 给的 magpie.service）
-lib/server.mjs    本地服务：/ 与 /api/summary，只监听 127.0.0.1 并校验 Host
+lib/server.mjs    本地服务：把数据嵌进页面返回（sandbox 框架 origin 为 null，fetch 是跨域）
 lib/site.mjs      会话读 /auth/me 与 /usage（分页 500，最多 40 页）
 web/*             页面与 SVG 折线/柱状（无外部资源）
 ```

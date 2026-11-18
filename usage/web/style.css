@@ -50,7 +50,6 @@ h2 { font-size: 13px; font-weight: 600; margin: 0; }
 .svg-chart .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
 .svg-chart .area { fill: var(--accent); opacity: .12; }
 .svg-chart .dot { fill: var(--accent); }
-.svg-chart .bar { fill: var(--accent); opacity: .75; }
 .chart { color: var(--muted); }
 
 .models, .records { list-style: none; margin: 0; padding: 0; }
