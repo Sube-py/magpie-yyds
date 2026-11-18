@@ -22,12 +22,13 @@ test("the card reads the account's wallet, as a share of what was paid in", asyn
   assert.equal(out.signIn, "kept")
   const [window] = out.windows
   assert.equal(window.name, "余额")
-  assert.equal(window.limit, 266.548, "everything paid in is the total")
-  assert.equal(window.amount, 266.548 - 43.183359089, "what was spent of it")
-  assert.equal(window.used.toFixed(1), "83.8")
+  assert.equal(window.used.toFixed(1), "83.8", "the share is what the curve and the meter read")
+  assert.equal(window.amount, undefined, "no count: magpie would count it day by day")
+  assert.equal(window.limit, undefined)
   assert.equal(window.aside, undefined, "a share is not set aside: magpie keeps its history")
+  assert.equal(window.family, undefined, "a family would hide the curve")
   assert.equal(window.balance, undefined)
-  assert.match(window.display, /\$43\.18 \/ 累计充值 \$266\.55/)
+  assert.match(window.display, /\$43\.18（累计充值 \$266\.55）/)
   assert.equal(calls[0].url, "https://www.yydsapi.uno/api/v1/auth/me")
 })
 
@@ -72,6 +73,7 @@ test("the share moves the way a wallet moves: spent down, topped up", () => {
   assert.ok(spent.used > before.used, "spending raises the share used")
   assert.ok(toppedUp.used < before.used, "a top-up raises the total and the balance")
   assert.equal(before.unit, "USD")
+  assert.equal(before.display.includes(" / "), false, "not 'used / total': that reads as credits")
 })
 
 test("the wallet is a figure, in its own unit", () => {

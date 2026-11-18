@@ -67,13 +67,16 @@ export function balanceWindow(balance, frozen = 0, recharged = 0) {
   const total = Number(recharged)
   if (Number.isFinite(total) && total > 0 && balance <= total) {
     const used = total - balance
+    // A share, and only a share: no `amount`/`limit`, and a display magpie
+    // can't read as "used / total". With a count, magpie treats the window as a
+    // pot of credits and adds its own "每天花掉的金额" row (and a daily chart),
+    // which a prepaid balance has nothing to do with; without a count it draws
+    // the share and keeps the history curve.
     return {
       name: "余额",
       used: Math.min(100, Math.max(0, (100 * used) / total)),
-      amount: used,
-      limit: total,
       unit: "USD",
-      display: `$${balance.toFixed(2)} / 累计充值 $${total.toFixed(2)}${frozenText}`,
+      display: `$${balance.toFixed(2)}（累计充值 $${total.toFixed(2)}${frozenText}）`,
     }
   }
   const display = `$${balance.toFixed(2)}${frozenText}`
