@@ -91,13 +91,13 @@ test("an entry keeps what magpie knows of the id, and takes this provider's addr
       variants: ["low", "high", "max"],
     },
   }
-  const entries = await router.entries(
+  const { models } = await router.entries(
     "yyds",
     [{ label: "", key: KEY_A }],
     (providerId, m, entry) => ({ ...(entry ?? {}), id: m.id, providerID: providerId, name: m.name }),
     known,
   )
-  const model = entries["glm-5.3"]
+  const model = models["glm-5.3"]
   assert.equal(model.providerID, "yyds", "this provider's id")
   assert.equal(model.name, "GLM-5.3", "the site's display name")
   assert.deepEqual(model.variants, ["low", "high", "max"], "the reasoning levels magpie knew")
@@ -109,9 +109,9 @@ test("an entry keeps what magpie knows of the id, and takes this provider's addr
 
 test("an id magpie never heard of gets the small table, and no invented limits", async () => {
   const { router } = catalogFor({ [KEY_A]: ["glm-5.3", "relay-only-1"] })
-  const entries = await router.entries("yyds", [{ label: "", key: KEY_A }], (id, m, entry) => ({ ...(entry ?? {}), id: m.id, name: m.name }), {})
-  assert.equal(entries["relay-only-1"].limit, undefined, "nothing is made up")
-  assert.equal(entries["glm-5.3"].limit, undefined, "and nothing is made up for a known id either")
+  const { models } = await router.entries("yyds", [{ label: "", key: KEY_A }], (id, m, entry) => ({ ...(entry ?? {}), id: m.id, name: m.name }), {})
+  assert.equal(models["relay-only-1"].limit, undefined, "nothing is made up")
+  assert.equal(models["glm-5.3"].limit, undefined, "and nothing is made up for a known id either")
 })
 
 test("the vendor the site names reaches whoever looks the model up", async () => {
@@ -130,4 +130,25 @@ test("the vendor the site names reaches whoever looks the model up", async () =>
     },
   )
   assert.deepEqual(asked, [["grok-4.7", "xai"]])
+})
+
+test("a site that is away is told apart from keys that serve nothing", async () => {
+  const down = new KeyRouter({
+    catalog: new ModelCatalog({
+      api: new YydsApi({
+        fetchImpl: async () => {
+          throw new Error("ETIMEDOUT")
+        },
+      }),
+    }),
+  })
+  const away = await down.entries("yyds", [{ label: "", key: KEY_A }], (id, m) => m)
+  assert.deepEqual(away.models, {})
+  assert.equal(away.away, true, "no models, but the site's fault")
+
+  const refused = new KeyRouter({
+    catalog: new ModelCatalog({ api: new YydsApi({ fetchImpl: async () => new Response(JSON.stringify({ error: { message: "invalid token" } }), { status: 401 }) }) }),
+  })
+  const wrong = await refused.entries("yyds", [{ label: "", key: KEY_A }], (id, m) => m)
+  assert.equal(wrong.away, false, "a key the site refuses is the key's fault")
 })

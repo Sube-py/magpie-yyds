@@ -7,6 +7,12 @@
 
 import { READ_TTL_MS } from "./constants.mjs"
 
+/** A failure that says the site is away, not that the key is wrong. */
+function isAway(error) {
+  const status = Number(error?.status) || 0
+  return status === 0 || status === 429 || status >= 500
+}
+
 export class KeyRouter {
   #catalog
   #ttlMs
@@ -30,9 +36,11 @@ export class KeyRouter {
         const models = await this.#catalog.list(entry.key)
         this.#byKey.set(entry.key, { models, at: Date.now() })
         out.push({ ...entry, models })
-      } catch {
-        // a key the site won't answer for serves nothing this minute
-        out.push({ ...entry, models: kept?.models ?? [] })
+      } catch (error) {
+        // a key the site won't answer for serves nothing this minute; why it
+        // wouldn't is kept, so "the site is away" and "this key is refused"
+        // aren't told apart wrongly
+        out.push({ ...entry, models: kept?.models ?? [], error })
       }
     }
     return out
@@ -75,14 +83,24 @@ export class KeyRouter {
    * than starting from nothing.
    */
   async entries(providerId, keys, build, knownOf = () => undefined) {
-    const byModel = await this.routes(keys)
-    return Object.fromEntries(
+    const lists = await this.lists(keys)
+    const byModel = new Map()
+    let away = false
+    for (const entry of lists) {
+      if (entry.error) away ||= isAway(entry.error)
+      for (const model of entry.models) {
+        if (byModel.has(model.id)) continue
+        byModel.set(model.id, { ...entry, name: model.name, ...(model.ownedBy ? { ownedBy: model.ownedBy } : {}) })
+      }
+    }
+    const models = Object.fromEntries(
       [...byModel].map(([id, entry]) => {
         const model = { id, name: entry.name, ...(entry.ownedBy ? { ownedBy: entry.ownedBy } : {}) }
         const meta = typeof knownOf === "function" ? knownOf(id, model.ownedBy) : knownOf?.[id]
         return [id, build(providerId, model, meta, model.ownedBy)]
       }),
     )
+    return { models, away }
   }
 
   /** Forgets what a key said, so its list is read again. */

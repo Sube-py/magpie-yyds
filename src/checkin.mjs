@@ -25,6 +25,14 @@ import { YydsError } from "./errors.mjs"
 const ALREADY_IN = /已签到|已领取|already\s+(checked|claimed)/i
 const CAPTCHA = /captcha/i
 
+/**
+ * How long a captcha answer stands. magpie keeps a plugin's answer for the
+ * day unless it is told when to ask again (`until`), which would leave the
+ * card saying "check in in the site's app" even after the person did — so the
+ * answer holds half an hour, and the next look picks up the check-in they made.
+ */
+const CAPTCHA_RECHECK_MS = 30 * 60 * 1000
+
 export class CheckinService {
   #api
 
@@ -119,7 +127,8 @@ export function failed(error) {
     if (CAPTCHA.test(`${error.message} ${error.reason} ${error.code}`)) {
       return {
         outcome: "captcha",
-        message: "只因API 的签到要人机验证（Geetest），插件不代答：请到 yydsapi.uno 手动签到一次",
+        message: "只因API 的签到要人机验证（Geetest），插件不代答：请到 yydsapi.uno 手动签到一次；签完 magpie 会自动读到",
+        until: new Date(Date.now() + CAPTCHA_RECHECK_MS).toISOString(),
       }
     }
     return { outcome: "failed", message: error.message }

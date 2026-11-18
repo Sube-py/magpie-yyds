@@ -92,6 +92,9 @@ test("a claim the site guards with a captcha is tried first, then reads as captc
   assert.match(out.message, /人机验证/)
   assert.match(out.message, /yydsapi\.uno/)
   assert.equal(calls.filter((c) => c.method === "POST").length, 1, "the claim is attempted, not pre-judged")
+  // the answer holds half an hour: after a manual check-in the next look sees it
+  const hold = Date.parse(out.until) - Date.now()
+  assert.ok(hold > 29 * 60_000 && hold <= 30 * 60_000, `until is ~30 min away, got ${out.until}`)
 })
 
 test("no settings read stands between the day and its claim", async () => {

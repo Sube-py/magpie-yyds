@@ -80,9 +80,12 @@ export async function YydsAuthPlugin(input = {}, options = {}) {
             runtimeModel,
             (id, ownedBy) => provider.models?.[id] ?? known.meta(id, ownedBy),
           )
-          if (Object.keys(listed).length) return listed
-          // keys are configured but none of them answered: say so instead of
-          // showing no models and no reason
+          if (Object.keys(listed.models).length) return listed.models
+          // the site couldn't be reached for any key: that is no reason to
+          // drop the list magpie had, nor to blame the keys
+          if (listed.away) return provider.models
+          // keys are configured but none of them serves a model: say so
+          // instead of showing no models and no reason
           throw new Error(STALE_KEYS)
         } catch (error) {
           if (error?.message === STALE_KEYS) throw error
